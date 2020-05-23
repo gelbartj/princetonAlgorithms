@@ -1,0 +1,226 @@
+import edu.princeton.cs.algs4.In;
+import edu.princeton.cs.algs4.Queue;
+import edu.princeton.cs.algs4.StdOut;
+
+public class BoggleSolver {
+    // Initializes the data structure using the given array of strings as the dictionary.
+    // (You can assume each word in the dictionary contains only the uppercase letters A through Z.)
+    // private String[] dictionary;
+
+    // private final ModTrieST<Boolean> dictTrie;
+    private String rawDict;
+
+    public BoggleSolver(String[] dictionary) {
+        // this.dictionary = dictionary;
+
+        /*
+        dictTrie = new ModTrieST<>();
+
+        for (String word : dictionary) {
+            dictTrie.put(word, true);
+        }
+
+         */
+
+
+        // System.out.println("Constructor: " + ((endTime - startTime) / 1000000) + "ms");
+
+        rawDict = String.join(",", dictionary);
+        rawDict = "," + rawDict + ",";
+
+        // System.out.println("String conversion: " + ((endTime - startTime) / 1000000) + "ms");
+    }
+
+    private int search(String txt, String pat) {
+        int R = 27; // capital letters plus comma
+        int N = txt.length();
+        int M = pat.length();
+
+        int ASCII_A = 65;
+
+        int[] right = new int[R];
+        for (int c = 0; c < R; c++)
+            right[c] = -1;
+        for (int j = 0; j < M; j++) {
+            if (pat.charAt(j) == ',') right[26] = j;
+            else right[pat.charAt(j) - ASCII_A] = j;
+        }
+
+        int skip;
+        for (int i = 0; i <= N - M; i += skip) {
+            skip = 0;
+            for (int j = M - 1; j >= 0; j--) {
+                if (pat.charAt(j) != txt.charAt(i + j)) {
+                    int modifiedIdx = txt.charAt(i + j) - ASCII_A;
+                    if (txt.charAt(i + j) == ',') modifiedIdx = 26;
+                    skip = Math.max(1, j - right[modifiedIdx]);
+                    break;
+                }
+            }
+            if (skip == 0) return i;
+        }
+        return N;
+    }
+
+    private boolean inDict(String word) { // , ModTrieST<Boolean> dict) {
+        return search(rawDict, "," + word + ",") != rawDict.length(); // dict.contains(word);
+    }
+
+    private Queue<int[]> getNextCharCoords(BoggleBoard board, int[][] wordCoords) {
+
+        Queue<int[]> nextCharCoords = new Queue<>();
+        int counter = 0;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                boolean usedFlag = false;
+                if (i == 0 && j == 0) continue;
+                int newRow = wordCoords[wordCoords.length - 1][0] + i;
+                int newCol = wordCoords[wordCoords.length - 1][1] + j;
+                if (newRow < 0 || newCol < 0 || newRow > board.rows() - 1
+                        || newCol > board.cols() - 1) continue;
+                for (int[] usedChars : wordCoords) {
+                    if (usedChars[0] == newRow && usedChars[1] == newCol) {
+                        usedFlag = true;
+                        break;
+                    }
+                }
+                if (!usedFlag) {
+                    counter++;
+                    nextCharCoords.enqueue(new int[] { newRow, newCol });
+                }
+            }
+        }
+        if (counter == 0) return null;
+        /*
+        System.out.println(
+                "Starting from " + wordCoords[wordCoords.length - 1][0] + ", " + wordCoords[
+                        wordCoords.length - 1][1] + ": ");
+        for (int[] coords : nextCharCoords) {
+            System.out.print(Arrays.toString(coords));
+        }
+        System.out.println();
+
+         */
+        return nextCharCoords;
+    }
+
+    private String wordFromCoords(BoggleBoard board, int[][] coordList) {
+        StringBuilder sb = new StringBuilder();
+        // char nextChar;
+        for (int i = 0; i < coordList.length; i++) {
+            char nextChar = board.getLetter(coordList[i][0], coordList[i][1]);
+            sb.append(nextChar);
+            if (nextChar == 'Q') sb.append('U');
+        }
+        return sb.toString();
+    }
+
+    private Queue<String> getWordsFromIdx(BoggleBoard board, int[][] startCoords) {
+        Queue<int[][]> wordCoordsToProcess = new Queue<>();
+        wordCoordsToProcess.enqueue(startCoords);
+
+        Queue<String> wordList = new Queue<>();
+
+        while (!wordCoordsToProcess.isEmpty()) {
+            int[][] nextWord = wordCoordsToProcess.dequeue();
+            String newWordBase = wordFromCoords(board, nextWord);
+
+            boolean hasNext = search(rawDict, "," + newWordBase) != rawDict
+                    .length(); // dictTrie.hasKeyWithPrefix(newWordBase);
+
+            if (!hasNext)
+                continue;
+
+            Queue<int[]> nextCharIdxs = getNextCharCoords(board, nextWord);
+
+            if (nextCharIdxs == null) continue;
+
+            for (int[] nextCharIdx : nextCharIdxs) {
+                int[][] newWord = new int[nextWord.length + 1][2];
+                for (int i = 0; i < nextWord.length; i++) {
+                    newWord[i] = nextWord[i];
+                }
+                newWord[newWord.length - 1] = nextCharIdx;
+                char nextLetter = board.getLetter(nextCharIdx[0], nextCharIdx[1]);
+                String newWordString = newWordBase
+                        .concat(Character.toString(
+                                nextLetter));
+
+                if (nextLetter == 'Q')
+                    newWordString = newWordString.concat(Character.toString('U'));
+
+                wordCoordsToProcess.enqueue(newWord);
+
+                boolean isInDict = inDict(newWordString); // , dictTrie);
+
+                if (isInDict && newWordString.length() >= 3) {
+                    wordList.enqueue(newWordString);
+                    // System.out.print(newWordString + ": ");
+                    // System.out.println(Arrays.deepToString(newWord));
+                }
+            }
+            // System.out.println("Inner loop: " + ((endTime - startTime) / 1000000) + "ms");
+        }
+        return wordList;
+    }
+
+
+    // Returns the set of all valid words in the given Boggle board, as an Iterable.
+    public Iterable<String> getAllValidWords(BoggleBoard board) {
+        Queue<String> wordList = new Queue<>();
+        for (int row = 0; row < board.rows(); row++) {
+            for (int col = 0; col < board.cols(); col++) {
+                // Get all words starting with the (row, col) letter of the board
+                // boolean[][] usedCharsMap = new boolean[board.rows()][board.cols()];
+                int[][] startCoords = new int[1][2];
+                startCoords[0] = new int[] { row, col };
+                for (String word : getWordsFromIdx(board, startCoords)) {
+                    boolean dupFlag = false;
+                    for (String addedWord : wordList) {
+                        if (addedWord.equals(word)) {
+                            dupFlag = true;
+                            break;
+                        }
+                    }
+                    if (!dupFlag) wordList.enqueue(word);
+                }
+                // System.out.println(
+                //         "Full loop for each starting letter: " + ((endTime - startTime) / 1000000)
+                //                 + "ms");
+            }
+        }
+        return wordList;
+    }
+
+    // Returns the score of the given word if it is in the dictionary, zero otherwise.
+    // (You can assume the word contains only the uppercase letters A through Z.)
+    public int scoreOf(String word) {
+        // if word in dictionary
+        if (inDict(word)) {
+            int[] scoreByLength = { 0, 0, 0, 1, 1, 2, 3, 5 };
+            int wordLen = word.length();
+            if (wordLen >= 8) return 11;
+
+            if (word.contains("Q") && !word.contains("QU")) {
+                wordLen += 1;
+            }
+
+            else return scoreByLength[wordLen];
+        }
+        return 0;
+    }
+
+    public static void main(String[] args) {
+        In in = new In(args[0]);
+        String[] dictionary = in.readAllStrings();
+        BoggleSolver solver = new BoggleSolver(dictionary);
+        BoggleBoard board = new BoggleBoard(args[1]);
+        int score = 0;
+        for (String word : solver.getAllValidWords(board)) {
+            StdOut.println(word);
+            score += solver.scoreOf(word);
+        }
+        StdOut.println("Score = " + score);
+    }
+
+}
